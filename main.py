@@ -13,7 +13,7 @@ app = FastAPI(title="Resume to Job AI API", version="1.0.0")
 origins = [
     "http://localhost:5173",  # Vite default
     "http://127.0.0.1:5173",
-    "https://resume-analyser-frontend-wine.vercel.app/",
+    "https://resume-analyser-frontend-wine.vercel.app",
 ]
 
 app.add_middleware(
