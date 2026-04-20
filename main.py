@@ -14,7 +14,9 @@ origins = [
     "http://localhost:5173",
     "http://localhost:5174",
     "https://resume-analyser-frontend-wine.vercel.app",
-    "https://resume-analyser-frontend-35la81dto-sivaraman-s-projects.vercel.app"
+    "https://resume-analyser-frontend-35la81dto-sivaraman-s-projects.vercel.app",
+    "https://resume2job.tech",
+    "https://www.resume2job.tech"
 ]
 
 app.add_middleware(
