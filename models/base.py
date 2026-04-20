@@ -8,6 +8,7 @@ class ApplicationHistory(Base):
     __tablename__ = "application_history"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, index=True, nullable=True)
     job_title = Column(String, index=True, nullable=False)
     match_score = Column(Integer, nullable=False)
     cover_letter = Column(Text, nullable=False)
