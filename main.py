@@ -11,9 +11,10 @@ app = FastAPI(title="Resume to Job AI API", version="1.0.0")
 
 # Setup CORS to allow connections from local React frontend
 origins = [
-    "http://localhost:5173",  # Vite default
-    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://localhost:5174",
     "https://resume-analyser-frontend-wine.vercel.app",
+    "https://resume-analyser-frontend-35la81dto-sivaraman-s-projects.vercel.app"
 ]
 
 app.add_middleware(
