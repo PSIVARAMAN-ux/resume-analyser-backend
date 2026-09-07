@@ -75,7 +75,7 @@ Output strictly valid JSON."""
 
     async def enhance_job_description(self, draft_text: str) -> str:
         response = await self.client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=[
                 {"role": "system", "content": "You are a professional technical recruiter. Take the user's messy job description draft and expand it into a clean, professional, Big Tech-style job description. Use bullet points for responsibilities and requirements. Return ONLY the polished text with no conversational filler."},
                 {"role": "user", "content": f"Enhance this job description: {draft_text}"}
