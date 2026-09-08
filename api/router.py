@@ -50,24 +50,29 @@ async def generate_application(
     db: Session = Depends(get_db),
     user_id: Optional[str] = Depends(get_optional_user)
 ):
-    # Check for PDF file extension or MIME type
-    if not (resume.filename and resume.filename.lower().endswith('.pdf')) and resume.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
-        
     try:
-        # Read file bytes directly from memory
         file_bytes = await resume.read()
         
-        # 1. Parse PDF directly from bytes
-        resume_text = extract_text_from_pdf(file_bytes)
+        # Check if the uploaded file is a PDF or Plain Text
+        is_pdf = resume.filename and resume.filename.lower().endswith('.pdf')
         
-        # 2. Call OpenAI Service via Groq
+        if is_pdf or resume.content_type == "application/pdf":
+            # Extract text from actual PDF
+            resume_text = extract_text_from_pdf(file_bytes)
+        else:
+            # Fall back to reading plain text directly
+            resume_text = file_bytes.decode("utf-8", errors="ignore")
+            
+        if not resume_text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from the provided resume.")
+        
+        # Call AI Service via Groq
         result_json = await ai_service.generate_tailored_application(
             resume_text=resume_text,
             job_description=job_description
         )
         
-        # 3. Save to database synchronously if user_id is present
+        # Save to database if authenticated
         if user_id:
             db_record = ApplicationHistory(
                 user_id=user_id,
@@ -82,10 +87,8 @@ async def generate_application(
         return result_json
         
     except ValueError as ve:
-        # Client errors (e.g., bad AI init, unreadable PDF)
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        # Standard internal errors
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")
 
 class EnhanceRequest(BaseModel):
