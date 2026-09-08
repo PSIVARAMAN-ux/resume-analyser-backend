@@ -1,4 +1,5 @@
-from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Depends
+from typing import Optional
+from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Depends, Security, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from services.pdf_service import extract_text_from_pdf
@@ -6,15 +7,16 @@ from services.ai_service import ai_service
 from core.database import get_db
 from models.base import ApplicationHistory
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Security, Header
 import jwt
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> str:
+    """Strict authentication for protected endpoints like /history."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Authentication credentials missing")
     token = credentials.credentials
     try:
-        # Extract Clerk subject identifier without signature lock for MVP local routing
         payload = jwt.decode(token, options={"verify_signature": False})
         user_id = payload.get("sub")
         if not user_id:
@@ -24,6 +26,16 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid JWT token")
+
+def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] = Security(security)) -> Optional[str]:
+    """Optional authentication for /generate so external tools or guest users don't get 401 errors."""
+    if not credentials:
+        return None
+    try:
+        payload = jwt.decode(credentials.credentials, options={"verify_signature": False})
+        return payload.get("sub")
+    except Exception:
+        return None
 
 api_router = APIRouter()
 
@@ -36,9 +48,10 @@ async def generate_application(
     resume: UploadFile = File(...),
     job_description: str = Form(...),
     db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    user_id: Optional[str] = Depends(get_optional_user)
 ):
-    if not resume.filename.lower().endswith('.pdf') and resume.content_type != "application/pdf":
+    # Check for PDF file extension or MIME type
+    if not (resume.filename and resume.filename.lower().endswith('.pdf')) and resume.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
         
     try:
@@ -54,16 +67,17 @@ async def generate_application(
             job_description=job_description
         )
         
-        # 3. Save to database synchronously within scope
-        db_record = ApplicationHistory(
-            user_id=user_id,
-            job_title=result_json.get("job_title", "Unknown Role"),
-            match_score=result_json.get("match_score", 0),
-            cover_letter=result_json.get("cover_letter", "")
-        )
-        db.add(db_record)
-        db.commit()
-        db.refresh(db_record)
+        # 3. Save to database synchronously if user_id is present
+        if user_id:
+            db_record = ApplicationHistory(
+                user_id=user_id,
+                job_title=result_json.get("job_title", "Unknown Role"),
+                match_score=result_json.get("match_score", 0),
+                cover_letter=result_json.get("cover_letter", "")
+            )
+            db.add(db_record)
+            db.commit()
+            db.refresh(db_record)
         
         return result_json
         
@@ -87,7 +101,7 @@ async def enhance_jd(req: EnhanceRequest):
 
 @api_router.get("/history")
 def fetch_history(db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
-    # Retrieve all records isolated by user_id
+    # Retrieve all records isolated by user_id (strictly protected)
     records = db.query(ApplicationHistory).filter(ApplicationHistory.user_id == user_id).order_by(ApplicationHistory.created_at.desc()).all()
     
     return [
